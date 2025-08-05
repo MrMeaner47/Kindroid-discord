@@ -25,11 +25,11 @@ export async function callKindroidAI(
 
     const lastUsername = conversation[conversation.length - 1].username;
 
-    // Encode username to handle non-ASCII characters, then hash to alphanumeric
+    // Re-add this part!
     const hashedUsername = Buffer.from(encodeURIComponent(lastUsername))
       .toString("base64")
       .replace(/[^a-zA-Z0-9]/g, "")
-      .slice(0, 32); // Limit length to 32 chars
+      .slice(0, 32);
 
     const response = await axios.post<KindroidResponse>(
       process.env.KINDROID_INFER_URL!,
