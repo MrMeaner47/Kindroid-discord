@@ -25,14 +25,15 @@ export async function callKindroidAI(
 
     const lastUsername = conversation[conversation.length - 1].username;
 
-    // Re-add this part!
     const hashedUsername = Buffer.from(encodeURIComponent(lastUsername))
       .toString("base64")
       .replace(/[^a-zA-Z0-9]/g, "")
       .slice(0, 32);
 
+    // ✅ Define the URL here — OUTSIDE the axios call
+    const url = process.env.KINDROID_INFER_URL!;
+
     const response = await axios.post<KindroidResponse>(
-     const url = process.env.KINDROID_INFER_URL!;
       url,
       {
         share_code: sharedAiCode,
@@ -45,32 +46,3 @@ export async function callKindroidAI(
           "X-Kindroid-Requester": hashedUsername,
           "Content-Type": "application/json",
         },
-      }
-    );
-
-    if (!response.data.success) {
-      throw new Error(response.data.error || "API request failed");
-    }
-
-    return {
-      type: "success",
-      reply: response.data.reply.replace(/@(everyone|here)/g, ""),
-    };
-  } catch (error) {
-    console.error("Error calling Kindroid AI:", (error as Error).message);
-    if (axios.isAxiosError(error)) {
-      const axiosError = error as AxiosError<KindroidResponse>;
-      if (axiosError.response) {
-        console.error("Response data:", axiosError.response.data);
-        console.error("Response status:", axiosError.response.status);
-        if (axiosError.response.status === 429) {
-          return { type: "rate_limited" };
-        }
-        if (axiosError.response.data?.error) {
-          throw new Error(axiosError.response.data.error);
-        }
-      }
-    }
-    throw new Error("Failed to get response from Kindroid AI");
-  }
-}
