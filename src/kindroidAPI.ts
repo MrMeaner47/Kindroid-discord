@@ -33,6 +33,9 @@ export async function callKindroidAI(
     // ✅ Define the URL here — OUTSIDE the axios call
     const url = process.env.KINDROID_INFER_URL!;
 
+    const url = process.env.KINDROID_INFER_URL!;
+
+console.log("Calling Kindroid at:", url);
     const response = await axios.post<KindroidResponse>(
   url,
   {
