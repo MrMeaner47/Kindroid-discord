@@ -34,7 +34,7 @@ export async function callKindroidAI(
     const url = process.env.KINDROID_INFER_URL!;
 
     const response = await axios.post<KindroidResponse>(
-  process.env.KINDROID_INFER_URL!,
+  url,
   {
     share_code: sharedAiCode,
     conversation,
