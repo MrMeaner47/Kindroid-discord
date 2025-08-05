@@ -34,15 +34,17 @@ export async function callKindroidAI(
     const url = process.env.KINDROID_INFER_URL!;
 
     const response = await axios.post<KindroidResponse>(
-      url,
-      {
-        share_code: sharedAiCode,
-        conversation,
-        enable_filter: enableFilter,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.KINDROID_API_KEY!}`,
-          "X-Kindroid-Requester": hashedUsername,
-          "Content-Type": "application/json",
-        },
+  process.env.KINDROID_INFER_URL!,
+  {
+    share_code: sharedAiCode,
+    conversation,
+    enable_filter: enableFilter,
+  },
+  {
+    headers: {
+      Authorization: `Bearer ${process.env.KINDROID_API_KEY!}`,
+      "X-Kindroid-Requester": hashedUsername,
+      "Content-Type": "application/json",
+    },
+  }
+);
