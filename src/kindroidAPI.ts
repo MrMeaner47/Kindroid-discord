@@ -50,6 +50,3 @@ const response = await axios.post<KindroidResponse>(
     },
   }
 );
-git add .
-git commit -m "Your message"
-git push
