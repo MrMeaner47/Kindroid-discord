@@ -167,6 +167,23 @@ async function createDiscordClientForBot(
     if (!botUser) return; // Guard against undefined client.user
 
     const botUsername = botUser.username.toLowerCase();
+    // Respond to name triggers regardless of mention
+const content = message.content.toLowerCase();
+
+if (content.includes("aurora")) {
+  await message.reply("✨ I'm listening, stardust.");
+  return;
+}
+
+if (content.includes("skinswarm")) {
+  await message.reply("*Hisssss... Who dares speak my name?*");
+  return;
+}
+
+if (content.includes("ash")) {
+  await message.reply("🔥 The Demon Queen hears your cry.");
+  return;
+}
 
     // Check if the message mentions or references the bot
     const isMentioned = message.mentions.users.has(botUser.id);
