@@ -30,21 +30,41 @@ export async function callKindroidAI(
       .replace(/[^a-zA-Z0-9]/g, "")
       .slice(0, 32);
 
-    // ✅ Define the URL here — OUTSIDE the axios call
-    const url = process.env.KINDROID_INFER_URL!; // Should be the discord-bot endpoint
+    // ✅ Set the correct endpoint for Discord bot use
+    const url = process.env.KINDROID_INFER_URL!; // Should be https://api.kindroid.ai/v1/discord-bot
 
-const response = await axios.post<KindroidResponse>(
-  url,
-  {
-    share_code: sharedAiCode,
-    conversation,
-    enable_filter: enableFilter,
-  },
-  {
-    headers: {
-      Authorization: `Bearer ${process.env.KINDROID_API_KEY!}`,
-      "X-Kindroid-Requester": hashedUsername,
-      "Content-Type": "application/json",
-    },
+    const response = await axios.post<KindroidResponse>(
+      url,
+      {
+        share_code: sharedAiCode,
+        conversation,
+        enable_filter: enableFilter,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.KINDROID_API_KEY!}`,
+          "X-Kindroid-Requester": hashedUsername,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    // ✅ You need to return the result
+    return {
+      success: true,
+      reply: response.data.reply,
+    };
+  } catch (error) {
+    const err = error as AxiosError;
+
+    if (err.response?.status === 429) {
+      return {
+        success: false,
+        rateLimited: true,
+      };
+    }
+
+    console.error("Error calling Kindroid AI:", err.message);
+    throw new Error("Failed to get response from Kindroid AI");
   }
-);
+}
