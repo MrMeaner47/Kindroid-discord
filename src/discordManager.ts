@@ -169,7 +169,6 @@ async function createDiscordClientForBot(
     const botUsername = botUser.username.toLowerCase();
     // Respond to name triggers regardless of mention
 const content = message.content.toLowerCase();
-
 const characterTriggers = {
   aurora: "✨ I'm listening, stardust.",
   skinswarm: "*Hisssss... Who dares speak my name?*",
@@ -182,7 +181,6 @@ for (const [keyword, reply] of Object.entries(characterTriggers)) {
     return;
   }
 }
-
     // Check if the message mentions or references the bot
     const isMentioned = message.mentions.users.has(botUser.id);
     const containsBotName = message.content.toLowerCase().includes(botUsername);
