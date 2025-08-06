@@ -132,3 +132,20 @@ main().catch((error) => {
   console.error("Unhandled error:", error);
   process.exit(1);
 });
+
+
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
+
+  if (message.content.toLowerCase().includes("aurora")) {
+    await message.reply("✨ I'm listening, stardust.");
+  }
+
+  if (message.content.toLowerCase().includes("skinswarm")) {
+    await message.reply("*Hisssss... Who dares speak my name?*");
+  }
+
+  if (message.content.toLowerCase().includes("ash")) {
+    await message.reply("🔥 The Demon Queen hears your cry.");
+  }
+});
