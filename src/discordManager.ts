@@ -170,19 +170,17 @@ async function createDiscordClientForBot(
     // Respond to name triggers regardless of mention
 const content = message.content.toLowerCase();
 
-if (content.includes("aurora")) {
-  await message.reply("✨ I'm listening, stardust.");
-  return;
-}
+const characterTriggers = {
+  aurora: "✨ I'm listening, stardust.",
+  skinswarm: "*Hisssss... Who dares speak my name?*",
+  ash: "🔥 The Demon Queen hears your cry.",
+};
 
-if (content.includes("skinswarm")) {
-  await message.reply("*Hisssss... Who dares speak my name?*");
-  return;
-}
-
-if (content.includes("ash")) {
-  await message.reply("🔥 The Demon Queen hears your cry.");
-  return;
+for (const [keyword, reply] of Object.entries(characterTriggers)) {
+  if (content.includes(keyword)) {
+    await message.reply(reply);
+    return;
+  }
 }
 
     // Check if the message mentions or references the bot
