@@ -31,9 +31,7 @@ export async function callKindroidAI(
       .slice(0, 32);
 
     // ✅ Define the URL here — OUTSIDE the axios call
-    const url = process.env.KINDROID_INFER_URL!;
-
-console.log("Calling Kindroid at:", url);
+    const url = process.env.KINDROID_INFER_URL!; // Should be the discord-bot endpoint
 
 const response = await axios.post<KindroidResponse>(
   url,
