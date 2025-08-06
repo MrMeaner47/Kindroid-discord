@@ -247,7 +247,33 @@ if (content.includes("ash")) {
   // Handle errors
   client.on("error", (error: Error) => {
     console.error(`[Bot ${botConfig.id}] WebSocket error:`, error);
-  });
+  }); // Line 250 — end of client.on("error")
+
+// Respond to specific mentions — insert STARTING here (new line 251)
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
+
+  const content = message.content.toLowerCase();
+
+  if (content.includes("aurora")) {
+    await message.reply("✨ I'm listening, stardust.");
+  }
+
+  if (content.includes("skinswarm")) {
+    await message.reply("*Hisssss... Who dares speak my name?*");
+  }
+
+  if (content.includes("ash")) {
+    await message.reply("🔥 The Demon Queen hears your cry.");
+  }
+
+  // Add more character responses here as needed
+});
+// Line 251 ends here
+
+// Login — remains at line 252
+try {
+  await client.login(botConfig.discordBotToken);
 
   // Login
   try {
