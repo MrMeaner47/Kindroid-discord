@@ -173,6 +173,7 @@ const characterTriggers = {
   aurora: "✨ I'm listening, stardust.",
   skinswarm: "*Hisssss... Who dares speak my name?*",
   ash: "🔥 The Demon Queen hears your cry.",
+  pandora: "🔧 What now? You break it, I fix it. You whine, I bite.",
 };
 
 for (const [keyword, reply] of Object.entries(characterTriggers)) {
