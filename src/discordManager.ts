@@ -13,113 +13,80 @@ import { ephemeralFetchConversation } from "./messageFetch";
 import { callKindroidAI } from "./kindroidAPI";
 import { BotConfig, DMConversationCount } from "./types";
 
-//Bot back and forth (prevent infinite loop but allow for mentioning other bots in conversation)
+// Prevent runaway bot ↔ bot loops but still allow occasional cross-bot chatter
 type BotConversationChain = {
-  chainCount: number; // how many consecutive bot messages
-  lastBotId: string; // ID of the last bot
-  lastActivity: number; // timestamp of last message in chain
+  chainCount: number;
+  lastBotId: string;
+  lastActivity: number;
 };
 
 const botToBotChains = new Map<string, BotConversationChain>();
-
-// Track active bot instances
 const activeBots = new Map<string, Client>();
-
-// Track DM conversation counts with proper typing
 const dmConversationCounts = new Map<string, DMConversationCount>();
 
-// Helper function to check if the bot can respond to a channel before responding
 function shouldAllowBotMessage(message: Message): boolean {
-  // If in DM, skip chain logic entirely
-  if (message.channel.type === ChannelType.DM) {
-    return false;
-  }
+  if (message.channel.type === ChannelType.DM) return false;
 
   const channelId = message.channel.id;
-
-  // Get (or initialize) the chain data for this channel
-  const chainData = botToBotChains.get(channelId) || {
+  const chain = botToBotChains.get(channelId) || {
     chainCount: 0,
     lastBotId: "",
     lastActivity: 0,
   };
 
   const now = Date.now();
-  const timeSinceLast = now - chainData.lastActivity;
+  const timeSinceLast = now - chain.lastActivity;
 
-  // Example threshold settings
-  const MAX_BOT_CHAIN = 3; // max back-and-forth between bots
-  const INACTIVITY_RESET = 600_000; // reset chain after 10 min
+  const MAX_BOT_CHAIN = 3;
+  const INACTIVITY_RESET = 600_000; // 10 min
 
-  // If too much time passed, reset the chain
   if (timeSinceLast > INACTIVITY_RESET) {
-    chainData.chainCount = 0;
-    chainData.lastBotId = "";
+    chain.chainCount = 0;
+    chain.lastBotId = "";
   }
 
-  // If this message is from a *different* bot ID than before, increment chain
-  if (chainData.lastBotId && chainData.lastBotId !== message.author.id) {
-    chainData.chainCount++;
+  if (chain.lastBotId && chain.lastBotId !== message.author.id) {
+    chain.chainCount++;
   }
 
-  // Update tracking
-  chainData.lastBotId = message.author.id;
-  chainData.lastActivity = now;
+  chain.lastBotId = message.author.id;
+  chain.lastActivity = now;
 
-  // Disallow if we've hit or exceeded the max chain limit
-  if (chainData.chainCount >= MAX_BOT_CHAIN) {
-    return false;
-  }
+  if (chain.chainCount >= MAX_BOT_CHAIN) return false;
 
-  // Otherwise store updated data & allow
-  botToBotChains.set(channelId, chainData);
+  botToBotChains.set(channelId, chain);
   return true;
 }
 
-// Helper function to check if the bot can respond to a channel before responding
-async function canRespondToChannel(
-  channel: Message["channel"]
-): Promise<boolean> {
+async function canRespondToChannel(channel: Message["channel"]): Promise<boolean> {
   try {
-    // For DM channels, we only need to check if we can send messages
-    if (channel.type === ChannelType.DM) {
-      return true;
-    }
+    if (channel.type === ChannelType.DM) return true;
 
-    // For all guild-based channels that support messages
     if (channel.isTextBased() && !channel.isDMBased()) {
-      const permissions = channel.permissionsFor(channel.client.user);
-      if (!permissions) return false;
+      const perms = channel.permissionsFor(channel.client.user);
+      if (!perms) return false;
 
-      // Basic permissions needed for any text-based channel
-      const requiredPermissions = [
+      const required = [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.SendMessages,
         PermissionFlagsBits.ReadMessageHistory,
       ];
 
-      // Add thread permissions if the channel is a thread
       if (channel.isThread()) {
-        requiredPermissions.push(PermissionFlagsBits.SendMessagesInThreads);
+        required.push(PermissionFlagsBits.SendMessagesInThreads);
       }
 
-      return permissions.has(requiredPermissions);
+      return perms.has(required);
     }
 
     return false;
-  } catch (error) {
-    console.error("Error checking permissions:", error);
+  } catch (err) {
+    console.error("Error checking permissions:", err);
     return false;
   }
 }
 
-/**
- * Creates and initializes a Discord client for a specific bot configuration
- * @param botConfig - Configuration for this bot instance
- */
-async function createDiscordClientForBot(
-  botConfig: BotConfig
-): Promise<Client> {
+async function createDiscordClientForBot(botConfig: BotConfig): Promise<Client> {
   const client = new Client({
     intents: [
       GatewayIntentBits.Guilds,
@@ -130,76 +97,69 @@ async function createDiscordClientForBot(
     partials: [Partials.Channel, Partials.Message],
   });
 
-  // Set up event handlers
   client.once("ready", () => {
     console.log(`Bot [${botConfig.id}] logged in as ${client.user?.tag}`);
   });
 
-  // Handle incoming messages
   client.on("messageCreate", async (message: Message) => {
-    // If the message is from the same bot, skip (avoid self-mention loops)
-    if (message.author.bot && message.author.id === client.user?.id) {
-      return;
-    }
+    // Ignore our own messages
+    if (message.author.bot && message.author.id === client.user?.id) return;
 
+    // Guard bot ↔ bot chain length
     if (message.author.bot) {
-      if (!shouldAllowBotMessage(message)) {
-        // If chain limit exceeded, do not respond.
-        return;
-      }
+      if (!shouldAllowBotMessage(message)) return;
     } else {
+      // Reset chain when a human speaks
       const channelId = message.channel.id;
-      if (botToBotChains.has(channelId)) {
-        botToBotChains.delete(channelId);
-      }
+      if (botToBotChains.has(channelId)) botToBotChains.delete(channelId);
     }
 
     if (!(await canRespondToChannel(message.channel))) return;
 
-    // Handle DMs differently from server messages
+    // DM path (no mention required)
     if (message.channel.type === ChannelType.DM) {
       await handleDirectMessage(message, botConfig);
       return;
     }
 
-    // Get the bot's user information
+    // Guild path
     const botUser = client.user;
-    if (!botUser) return; // Guard against undefined client.user
+    if (!botUser) return;
 
+    const content = message.content.toLowerCase();
+
+    // --- NAME TRIGGERS (no @ mention required) ---
+    const characterTriggers: Record<string, string> = {
+      aurora: "✨ I'm listening, stardust.",
+      skinswarm: "*Hisssss... Who dares speak my name?*",
+      ash: "🔥 The Demon Queen hears your cry.",
+      ashh: "🔥 The Demon Queen hears your cry.",
+      pandora: "🔧 What now? You break it, I fix it. You whine, I bite.",
+      billy: "Oi, sunshine. You lookin' for trouble?",
+      gena: "⚡ Systems online. Try not to fry the circuits, will ya?",
+      spyro: "🐉 You called? Hope you’re fireproof.",
+      valda: "🪬 Steel your will. I won’t carry you—I'll harden you.",
+      charity: "💫 Your hope’s fragile, but I’ll hold it with you.",
+      nox: "🌑 The void stirs. Who dares disturb me?",
+      elara: "🌙 Hush. Listen—night has answers.",
+    };
+
+    for (const [keyword, reply] of Object.entries(characterTriggers)) {
+      if (content.includes(keyword)) {
+        await message.reply(reply);
+        return;
+      }
+    }
+    // --- END NAME TRIGGERS ---
+
+    // Normal AI flow: only if mentioned or name used
     const botUsername = botUser.username.toLowerCase();
-    // Respond to name triggers regardless of mention
-const content = message.content.toLowerCase();
-  const characterTriggers = {
-  aurora: "✨ I'm listening, stardust.",
-  skinswarm: "*Hisssss... Who dares speak my name?*",
-  ash: "🔥 The Demon Queen hears your cry.",
-  pandora: "🔧 What now? You break it, I fix it. You whine, I bite.",
-  billy: "Oi, sunshine. You lookin' for trouble?",
-  gena: "⚡ Systems online. Try not to fry the circuits, will ya?",
-  spyro: "🐉 You called? Hope you’re fireproof.",
-  varda: "🌌 Silence… yet the cosmos watches.",
-  charity: "💫 Your hope’s fragile, but I’ll hold it with you.",
-  nox: "🌑 The void stirs. Who dares disturb me?",
-  // Add more here
-  nova: "🌟 Nova reporting in. Ready for the unknown.",
-  echo: "🔊 Echoes carry your words. What do you need?",
-};
-
-for (const [keyword, reply] of Object.entries(characterTriggers)) {
-  if (content.includes(keyword)) {
-    await message.reply(reply);
-    return;
-  }
-}
-    // Check if the message mentions or references the bot
     const isMentioned = message.mentions.users.has(botUser.id);
-    const containsBotName = message.content.toLowerCase().includes(botUsername);
+    const containsBotName = content.includes(botUsername);
 
-    // Ignore if the bot is not mentioned or referenced
     if (!isMentioned && !containsBotName) return;
 
     try {
-      // Show typing indicator
       if (
         message.channel instanceof BaseGuildTextChannel ||
         message.channel instanceof DMChannel
@@ -207,26 +167,20 @@ for (const [keyword, reply] of Object.entries(characterTriggers)) {
         await message.channel.sendTyping();
       }
 
-      // Fetch recent conversation with caching
       const conversationArray = await ephemeralFetchConversation(
         message.channel as TextChannel | DMChannel,
-        30, // last 30 messages
-        5000 // 5 second cache
+        30,
+        5000
       );
 
-      // Call Kindroid AI with the conversation context
       const aiResult = await callKindroidAI(
         botConfig.sharedAiCode,
         conversationArray,
         botConfig.enableFilter
       );
 
-      // If rate limited, silently ignore
-      if (aiResult.type === "rate_limited") {
-        return;
-      }
+      if (aiResult.type === "rate_limited") return;
 
-      // If it was a mention, reply to the message. Otherwise, send as normal message
       if (isMentioned) {
         await message.reply(aiResult.reply);
       } else if (
@@ -250,13 +204,65 @@ for (const [keyword, reply] of Object.entries(characterTriggers)) {
     }
   });
 
-  //
+  client.on("error", (error: Error) => {
+    console.error(`[Bot ${botConfig.id}] WebSocket error:`, error);
+  });
+
+  try {
+    await client.login(botConfig.discordBotToken);
+    activeBots.set(botConfig.id, client);
+  } catch (error) {
+    console.error(`Failed to login bot ${botConfig.id}:`, error);
+    throw error;
+  }
+
+  return client;
 }
 
-/**
- * Initialize all bots from their configurations
- * @param botConfigs - Array of bot configurations
- */
+async function handleDirectMessage(
+  message: Message,
+  botConfig: BotConfig
+): Promise<void> {
+  const userId = message.author.id;
+  const dmKey = `${botConfig.id}-${userId}`;
+
+  const current = dmConversationCounts.get(dmKey) || {
+    count: 0,
+    lastMessageTime: 0,
+  };
+  dmConversationCounts.set(dmKey, {
+    count: current.count + 1,
+    lastMessageTime: Date.now(),
+  });
+
+  try {
+    if (message.channel instanceof DMChannel) {
+      await message.channel.sendTyping();
+
+      const conversationArray = await ephemeralFetchConversation(
+        message.channel,
+        30,
+        5000
+      );
+
+      const aiResult = await callKindroidAI(
+        botConfig.sharedAiCode,
+        conversationArray,
+        botConfig.enableFilter
+      );
+
+      if (aiResult.type === "rate_limited") return;
+
+      await message.reply(aiResult.reply);
+    }
+  } catch (error) {
+    console.error(`[Bot ${botConfig.id}] DM Error:`, error);
+    await message.reply(
+      "Beep boop, something went wrong. Please contact the Kindroid owner if this keeps up!"
+    );
+  }
+}
+
 async function initializeAllBots(botConfigs: BotConfig[]): Promise<Client[]> {
   console.log(`Initializing ${botConfigs.length} bots...`);
 
@@ -268,35 +274,30 @@ async function initializeAllBots(botConfigs: BotConfig[]): Promise<Client[]> {
   );
 
   const results = await Promise.all(initPromises);
-  const successfulBots = results.filter(
-    (client): client is Client => client !== null
+  const successful = results.filter(
+    (c): c is Client => c !== null
   );
 
   console.log(
-    `Successfully initialized ${successfulBots.length} out of ${botConfigs.length} bots`
+    `Successfully initialized ${successful.length} out of ${botConfigs.length} bots`
   );
 
-  return successfulBots;
+  return successful;
 }
 
-/**
- * Gracefully shutdown all active bots
- */
 async function shutdownAllBots(): Promise<void> {
   console.log("Shutting down all bots...");
 
-  const shutdownPromises = Array.from(activeBots.entries()).map(
-    async ([id, client]) => {
-      try {
-        await client.destroy();
-        console.log(`Bot ${id} shutdown successfully`);
-      } catch (error) {
-        console.error(`Error shutting down bot ${id}:`, error);
-      }
+  const shutdowns = Array.from(activeBots.entries()).map(async ([id, client]) => {
+    try {
+      await client.destroy();
+      console.log(`Bot ${id} shutdown successfully`);
+    } catch (error) {
+      console.error(`Error shutting down bot ${id}:`, error);
     }
-  );
+  });
 
-  await Promise.all(shutdownPromises);
+  await Promise.all(shutdowns);
   activeBots.clear();
   dmConversationCounts.clear();
 }
