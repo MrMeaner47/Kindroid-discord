@@ -169,11 +169,20 @@ async function createDiscordClientForBot(
     const botUsername = botUser.username.toLowerCase();
     // Respond to name triggers regardless of mention
 const content = message.content.toLowerCase();
-const characterTriggers = {
+  const characterTriggers = {
   aurora: "✨ I'm listening, stardust.",
   skinswarm: "*Hisssss... Who dares speak my name?*",
   ash: "🔥 The Demon Queen hears your cry.",
   pandora: "🔧 What now? You break it, I fix it. You whine, I bite.",
+  billy: "Oi, sunshine. You lookin' for trouble?",
+  gena: "⚡ Systems online. Try not to fry the circuits, will ya?",
+  spyro: "🐉 You called? Hope you’re fireproof.",
+  varda: "🌌 Silence… yet the cosmos watches.",
+  charity: "💫 Your hope’s fragile, but I’ll hold it with you.",
+  nox: "🌑 The void stirs. Who dares disturb me?",
+  // Add more here
+  nova: "🌟 Nova reporting in. Ready for the unknown.",
+  echo: "🔊 Echoes carry your words. What do you need?",
 };
 
 for (const [keyword, reply] of Object.entries(characterTriggers)) {
